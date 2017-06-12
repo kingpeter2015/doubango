@@ -22,3 +22,9 @@ Debug
 *.db
 *.ipch
 *.opendb
+/bindings/csharp/UpgradeLog.htm
+/tinySAK/Static_Debug/tinySAK.tlog/*.tlog
+/tinySAK/Static_Debug
+/thirdparties/win32/bin/openssl/*.pdb
+/thirdparties/win32/lib/openssl/*.pdb
+/thirdparties/win32/lib/openssl/*.exp

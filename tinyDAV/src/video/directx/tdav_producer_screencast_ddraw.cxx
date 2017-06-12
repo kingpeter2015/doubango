@@ -495,7 +495,7 @@ static void _tdav_producer_screencast_rgb32_to_yuv420_intrin_ssse3(uint8_t *yuvP
 	__asm movdqa xmmword ptr [ecx], xmm7 \
 	}
 
-__declspec(naked) __declspec(align(DDRAW_MEM_ALIGNMENT))
+//__declspec(naked) __declspec(align(DDRAW_MEM_ALIGNMENT))
 static void _tdav_producer_screencast_rgb32_to_yuv420_asm_ssse3(uint8_t *yuvPtr, const uint8_t *rgbPtr, int width, int height)
 {
     __asm {

@@ -264,7 +264,7 @@ static tsk_size_t tdav_codec_h264_encode(tmedia_codec_t* self, const void* in_da
     }
     else { // !h264->encoder.passthrough
 #if HAVE_FFMPEG		// wrap yuv420 buffer
-        size = avpicture_fill((AVPicture *)h264->encoder.picture, (uint8_t*)in_data, PIX_FMT_YUV420P, h264->encoder.context->width, h264->encoder.context->height);
+        size = avpicture_fill((AVPicture *)h264->encoder.picture, (uint8_t*)in_data, AV_PIX_FMT_YUV420P, h264->encoder.context->width, h264->encoder.context->height);
         if (size != in_size) {
             /* guard */
             TSK_DEBUG_ERROR("Invalid size: %u<>%u", size, in_size);
@@ -302,7 +302,7 @@ static tsk_size_t tdav_codec_h264_encode(tmedia_codec_t* self, const void* in_da
         h264->encoder.picture->pts = AV_NOPTS_VALUE;
         h264->encoder.picture->quality = h264->encoder.context->global_quality;
         // h264->encoder.picture->pts = h264->encoder.frame_count; MUST NOT
-        ret = avcodec_encode_video(h264->encoder.context, h264->encoder.buffer, size, h264->encoder.picture);
+        ret = avcodec_encode_video2(h264->encoder.context, h264->encoder.buffer, h264->encoder.picture, &size);
         if(ret > 0) {
             tdav_codec_h264_rtp_encap(TDAV_CODEC_H264_COMMON(h264), h264->encoder.buffer, (tsk_size_t)ret);
         }
@@ -699,7 +699,7 @@ int tdav_codec_h264_open_encoder(tdav_codec_h264_t* self)
     self->encoder.context->dsp_mask = (FF_MM_MMX | FF_MM_MMXEXT | FF_MM_SSE);
 #endif
 
-    self->encoder.context->pix_fmt		= PIX_FMT_YUV420P;
+    self->encoder.context->pix_fmt		= AV_PIX_FMT_YUV420P;
     self->encoder.context->time_base.num  = 1;
     self->encoder.context->time_base.den  = TMEDIA_CODEC_VIDEO(self)->out.fps;
     self->encoder.context->width = (self->encoder.rotation == 90 || self->encoder.rotation == 270) ? TMEDIA_CODEC_VIDEO(self)->out.height : TMEDIA_CODEC_VIDEO(self)->out.width;
@@ -780,21 +780,21 @@ int tdav_codec_h264_open_encoder(tdav_codec_h264_t* self)
 #endif
 
     // Picture (YUV 420)
-    if(!(self->encoder.picture = avcodec_alloc_frame())) {
+    if(!(self->encoder.picture = av_frame_alloc())) {
         TSK_DEBUG_ERROR("Failed to create encoder picture");
         return -2;
     }
-    avcodec_get_frame_defaults(self->encoder.picture);
+    av_frame_unref(self->encoder.picture);
 
 
-    size = avpicture_get_size(PIX_FMT_YUV420P, self->encoder.context->width, self->encoder.context->height);
+    size = avpicture_get_size(AV_PIX_FMT_YUV420P, self->encoder.context->width, self->encoder.context->height);
     if(!(self->encoder.buffer = tsk_calloc(size, sizeof(uint8_t)))) {
         TSK_DEBUG_ERROR("Failed to allocate encoder buffer");
         return -2;
     }
 
     // Open encoder
-    if((ret = avcodec_open(self->encoder.context, self->encoder.codec)) < 0) {
+    if((ret = avcodec_open2(self->encoder.context, self->encoder.codec, NULL)) < 0) {
         TSK_DEBUG_ERROR("Failed to open [%s] codec", TMEDIA_CODEC(self)->plugin->desc);
         return ret;
     }
@@ -847,23 +847,23 @@ int tdav_codec_h264_open_decoder(tdav_codec_h264_t* self)
         return -1;
     }
 
-    self->decoder.context = avcodec_alloc_context();
-    avcodec_get_context_defaults(self->decoder.context);
+    self->decoder.context = avcodec_alloc_context3(NULL);
+    avcodec_get_context_defaults3(self->decoder.context, NULL);
 
-    self->decoder.context->pix_fmt = PIX_FMT_YUV420P;
+    self->decoder.context->pix_fmt = AV_PIX_FMT_YUV420P;
     self->decoder.context->flags2 |= CODEC_FLAG2_FAST;
     self->decoder.context->width = TMEDIA_CODEC_VIDEO(self)->in.width;
     self->decoder.context->height = TMEDIA_CODEC_VIDEO(self)->in.height;
 
     // Picture (YUV 420)
-    if(!(self->decoder.picture = avcodec_alloc_frame())) {
+    if(!(self->decoder.picture = av_frame_alloc())) {
         TSK_DEBUG_ERROR("Failed to create decoder picture");
         return -2;
     }
-    avcodec_get_frame_defaults(self->decoder.picture);
+    av_frame_unref(self->decoder.picture);
 
     // Open decoder
-    if((ret = avcodec_open(self->decoder.context, self->decoder.codec)) < 0) {
+    if((ret = avcodec_open2(self->decoder.context, self->decoder.codec, NULL)) < 0) {
         TSK_DEBUG_ERROR("Failed to open [%s] codec", TMEDIA_CODEC(self)->plugin->desc);
         return ret;
     }
@@ -927,12 +927,12 @@ int tdav_codec_h264_init(tdav_codec_h264_t* self, profile_idc_t profile)
     TMEDIA_CODEC_VIDEO(self)->in.max_br = TMEDIA_CODEC_VIDEO(self)->out.max_br = H264_MAX_BR*1000;
 
 #if HAVE_FFMPEG
-    if(!(self->encoder.codec = avcodec_find_encoder(CODEC_ID_H264))) {
+    if(!(self->encoder.codec = avcodec_find_encoder(AV_CODEC_ID_H264))) {
         TSK_DEBUG_ERROR("Failed to find H.264 encoder");
         ret = -2;
     }
 
-    if(!(self->decoder.codec = avcodec_find_decoder(CODEC_ID_H264))) {
+    if(!(self->decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264))) {
         TSK_DEBUG_ERROR("Failed to find H.264 decoder");
         ret = -3;
     }
@@ -969,7 +969,7 @@ int tdav_codec_h264_deinit(tdav_codec_h264_t* self)
 tsk_bool_t tdav_codec_ffmpeg_h264_is_supported()
 {
 #if HAVE_FFMPEG
-    return (avcodec_find_encoder(CODEC_ID_H264) && avcodec_find_decoder(CODEC_ID_H264));
+    return (avcodec_find_encoder(AV_CODEC_ID_H264) && avcodec_find_decoder(AV_CODEC_ID_H264));
 #else
     return tsk_false;
 #endif

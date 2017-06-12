@@ -292,7 +292,7 @@ static tsk_size_t tdav_codec_h263_encode(tmedia_codec_t* self, const void* in_da
     }
 
     // wrap yuv420 buffer
-    size = avpicture_fill((AVPicture *)h263->encoder.picture, (uint8_t*)in_data, PIX_FMT_YUV420P, h263->encoder.context->width, h263->encoder.context->height);
+    size = avpicture_fill((AVPicture *)h263->encoder.picture, (uint8_t*)in_data, AV_PIX_FMT_YUV420P, h263->encoder.context->width, h263->encoder.context->height);
     if(size != in_size) {
         /* guard */
         TSK_DEBUG_ERROR("Invalid size");
@@ -305,7 +305,7 @@ static tsk_size_t tdav_codec_h263_encode(tmedia_codec_t* self, const void* in_da
 #endif
     h263->encoder.picture->pts = AV_NOPTS_VALUE;
     h263->encoder.picture->quality = h263->encoder.context->global_quality;
-    ret = avcodec_encode_video(h263->encoder.context, h263->encoder.buffer, size, h263->encoder.picture);
+    ret = avcodec_encode_video2(h263->encoder.context, h263->encoder.buffer, h263->encoder.picture, &size);
     if(ret > 0) {
         tdav_codec_h263_encap(h263, h263->encoder.buffer, (tsk_size_t)ret);
     }
@@ -537,7 +537,7 @@ static tsk_object_t* tdav_codec_h263_ctor(tsk_object_t * self, va_list * app)
     if(h263) {
         /* init base: called by tmedia_codec_create() */
         /* init self */
-        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_1996, CODEC_ID_H263, CODEC_ID_H263);
+        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_1996, AV_CODEC_ID_H263, AV_CODEC_ID_H263);
     }
     return self;
 }
@@ -761,7 +761,7 @@ static tsk_object_t* tdav_codec_h263p_ctor(tsk_object_t * self, va_list * app)
     if(h263p) {
         /* init base: called by tmedia_codec_create() */
         /* init self */
-        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_1998, CODEC_ID_H263P, CODEC_ID_H263);
+        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_1998, AV_CODEC_ID_H263P, AV_CODEC_ID_H263);
     }
     return self;
 }
@@ -839,7 +839,7 @@ static tsk_object_t* tdav_codec_h263pp_ctor(tsk_object_t * self, va_list * app)
     if(h263pp) {
         /* init base: called by tmedia_codec_create() */
         /* init self */
-        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_2000, CODEC_ID_H263P, CODEC_ID_H263);
+        tdav_codec_h263_init(TDAV_CODEC_H263(self), tdav_codec_h263_2000, AV_CODEC_ID_H263P, AV_CODEC_ID_H263);
     }
     return self;
 }
@@ -903,10 +903,10 @@ int tdav_codec_h263_open_encoder(tdav_codec_h263_t* self)
         return -1;
     }
 
-    self->encoder.context = avcodec_alloc_context();
-    avcodec_get_context_defaults(self->encoder.context);
+    self->encoder.context = avcodec_alloc_context3(NULL);
+    avcodec_get_context_defaults3(self->encoder.context, NULL);
 
-    self->encoder.context->pix_fmt		= PIX_FMT_YUV420P;
+    self->encoder.context->pix_fmt		= AV_PIX_FMT_YUV420P;
     self->encoder.context->time_base.num  = 1;
     self->encoder.context->time_base.den  = TMEDIA_CODEC_VIDEO(self)->out.fps;
     self->encoder.context->width = TMEDIA_CODEC_VIDEO(self)->out.width;
@@ -934,17 +934,17 @@ int tdav_codec_h263_open_encoder(tdav_codec_h263_t* self)
     self->encoder.context->max_b_frames = 0;
 
     // Picture (YUV 420)
-    if(!(self->encoder.picture = avcodec_alloc_frame())) {
+    if(!(self->encoder.picture = av_frame_alloc())) {
         TSK_DEBUG_ERROR("Failed to create encoder picture");
         return -2;
     }
-    avcodec_get_frame_defaults(self->encoder.picture);
+    av_frame_unref(self->encoder.picture);
     //if((ret = avpicture_alloc((AVPicture*)self->encoder.picture, PIX_FMT_YUV420P, self->encoder.context->width, self->encoder.context->height))){
     //	TSK_DEBUG_ERROR("Failed to allocate encoder picture");
     //	return ret;
     //}
 
-    size = avpicture_get_size(PIX_FMT_YUV420P, self->encoder.context->width, self->encoder.context->height);
+    size = avpicture_get_size(AV_PIX_FMT_YUV420P, self->encoder.context->width, self->encoder.context->height);
     if(!(self->encoder.buffer = tsk_calloc(size, sizeof(uint8_t)))) {
         TSK_DEBUG_ERROR("Failed to allocate encoder buffer");
         return -2;
@@ -989,7 +989,7 @@ int tdav_codec_h263_open_encoder(tdav_codec_h263_t* self)
     }
     }
     // Open encoder
-    if((ret = avcodec_open(self->encoder.context, self->encoder.codec)) < 0) {
+    if((ret = avcodec_open2(self->encoder.context, self->encoder.codec, NULL)) < 0) {
         TSK_DEBUG_ERROR("Failed to open [%s] codec", TMEDIA_CODEC(self)->plugin->desc);
         return ret;
     }
@@ -1008,28 +1008,28 @@ int tdav_codec_h263_open_decoder(tdav_codec_h263_t* self)
         return -1;
     }
 
-    self->decoder.context = avcodec_alloc_context();
-    avcodec_get_context_defaults(self->decoder.context);
+    self->decoder.context = avcodec_alloc_context3(NULL);
+    avcodec_get_context_defaults3(self->decoder.context, NULL);
 
-    self->decoder.context->pix_fmt = PIX_FMT_YUV420P;
+    self->decoder.context->pix_fmt = AV_PIX_FMT_YUV420P;
     self->decoder.context->width = TMEDIA_CODEC_VIDEO(self)->in.width;
     self->decoder.context->height = TMEDIA_CODEC_VIDEO(self)->in.height;
 
     // Picture (YUV 420)
-    if(!(self->decoder.picture = avcodec_alloc_frame())) {
+    if(!(self->decoder.picture = av_frame_alloc())) {
         TSK_DEBUG_ERROR("Failed to create decoder picture");
         return -2;
     }
-    avcodec_get_frame_defaults(self->decoder.picture);
+    av_frame_unref(self->decoder.picture);
 
-    size = avpicture_get_size(PIX_FMT_YUV420P, self->decoder.context->width, self->decoder.context->height);
+    size = avpicture_get_size(AV_PIX_FMT_YUV420P, self->decoder.context->width, self->decoder.context->height);
     if(!(self->decoder.accumulator = tsk_calloc((size + FF_INPUT_BUFFER_PADDING_SIZE), sizeof(uint8_t)))) {
         TSK_DEBUG_ERROR("Failed to allocate decoder buffer");
         return -2;
     }
 
     // Open decoder
-    if((ret = avcodec_open(self->decoder.context, self->decoder.codec)) < 0) {
+    if((ret = avcodec_open2(self->decoder.context, self->decoder.codec, NULL)) < 0) {
         TSK_DEBUG_ERROR("Failed to open [%s] codec", TMEDIA_CODEC(self)->plugin->desc);
         return ret;
     }
@@ -1139,21 +1139,21 @@ static void tdav_codec_h263_rtp_callback(tdav_codec_h263_t *self, const void *da
     * 5.1.1 Picture Start Code (PSC) (22 bits)
     * 5.1.2 Temporal Reference (TR) (8 bits)
     * 5.1.3 Type Information (PTYPE) (Variable Length)
-    *	– Bit 1: Always "1", in order to avoid start code emulation.
-    *	– Bit 2: Always "0", for distinction with Recommendation H.261.
+    *	?Bit 1: Always "1", in order to avoid start code emulation.
+    *	?Bit 2: Always "0", for distinction with Recommendation H.261.
 
-    *	– Bit 3: Split screen indicator, "0" off, "1" on.
-    *	– Bit 4: Document camera indicator, "0" off, "1" on.
-    *	– Bit 5: Full Picture Freeze Release, "0" off, "1" on.
-    *	– Bits 6-8: Source Format, "000" forbidden, "001" sub-QCIF, "010" QCIF, "011" CIF,
+    *	?Bit 3: Split screen indicator, "0" off, "1" on.
+    *	?Bit 4: Document camera indicator, "0" off, "1" on.
+    *	?Bit 5: Full Picture Freeze Release, "0" off, "1" on.
+    *	?Bits 6-8: Source Format, "000" forbidden, "001" sub-QCIF, "010" QCIF, "011" CIF,
     	"100" 4CIF, "101" 16CIF, "110" reserved, "111" extended PTYPE.
     	If bits 6-8 are not equal to "111", which indicates an extended PTYPE (PLUSPTYPE), the following
     	five bits are also present in PTYPE:
-    	– Bit 9: Picture Coding Type, "0" INTRA (I-picture), "1" INTER (P-picture).
-    	– Bit 10: Optional Unrestricted Motion Vector mode (see Annex D), "0" off, "1" on.
-    	– Bit 11: Optional Syntax-based Arithmetic Coding mode (see Annex E), "0" off, "1" on.
-    	– Bit 12: Optional Advanced Prediction mode (see Annex F), "0" off, "1" on.
-    	– Bit 13: Optional PB-frames mode (see Annex G), "0" normal I- or P-picture, "1" PB-frame.
+    	?Bit 9: Picture Coding Type, "0" INTRA (I-picture), "1" INTER (P-picture).
+    	?Bit 10: Optional Unrestricted Motion Vector mode (see Annex D), "0" off, "1" on.
+    	?Bit 11: Optional Syntax-based Arithmetic Coding mode (see Annex E), "0" off, "1" on.
+    	?Bit 12: Optional Advanced Prediction mode (see Annex F), "0" off, "1" on.
+    	?Bit 13: Optional PB-frames mode (see Annex G), "0" normal I- or P-picture, "1" PB-frame.
     */
     if(pdata[0] == 0x00 && pdata[1] == 0x00 && (pdata[2] & 0xfc)==0x80) { /* PSC */
         /* RFC 2190 -5.1 Mode A
@@ -1343,12 +1343,12 @@ static void tdav_codec_h263p_rtp_callback(tdav_codec_h263_t *self, const void *d
 
 tsk_bool_t tdav_codec_ffmpeg_h263_is_supported()
 {
-    return (avcodec_find_encoder(CODEC_ID_H263) && avcodec_find_decoder(CODEC_ID_H263));
+    return (avcodec_find_encoder(AV_CODEC_ID_H263) && avcodec_find_decoder(AV_CODEC_ID_H263));
 }
 
 tsk_bool_t tdav_codec_ffmpeg_h263p_is_supported()
 {
-    return (avcodec_find_encoder(CODEC_ID_H263P) && avcodec_find_decoder(CODEC_ID_H263));
+    return (avcodec_find_encoder(AV_CODEC_ID_H263P) && avcodec_find_decoder(AV_CODEC_ID_H263));
 }
 
 tsk_bool_t tdav_codec_ffmpeg_h263pp_is_supported()
