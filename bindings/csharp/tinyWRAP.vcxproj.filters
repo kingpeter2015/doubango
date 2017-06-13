@@ -75,10 +75,10 @@
     <ClCompile Include="..\_common\SMSEncoder.cxx">
       <Filter>source%28%2a.cxx%29</Filter>
     </ClCompile>
-    <ClCompile Include="tinyWRAP_wrap.cxx">
+    <ClCompile Include="..\_common\Xcap.cxx">
       <Filter>source%28%2a.cxx%29</Filter>
     </ClCompile>
-    <ClCompile Include="..\_common\Xcap.cxx">
+    <ClCompile Include="tinyWRAP_wrap.cxx">
       <Filter>source%28%2a.cxx%29</Filter>
     </ClCompile>
   </ItemGroup>

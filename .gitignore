@@ -28,3 +28,5 @@ Debug
 /thirdparties/win32/bin/openssl/*.pdb
 /thirdparties/win32/lib/openssl/*.pdb
 /thirdparties/win32/lib/openssl/*.exp
+/plugins/pluginDirectShow/Release
+/plugins/pluginWinIPSecVista/Release

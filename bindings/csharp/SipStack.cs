@@ -254,7 +254,7 @@ public class SipStack : SafeObject {
   }
 
   public static bool initialize() {
-    bool ret = tinyWRAPPINVOKE.SipStack_initialize();
+    bool ret = tinyWRAPPINVOKE.SipStack_initialize() == 1 ? true : false;
     return ret;
   }
 
